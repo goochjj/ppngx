@@ -25,23 +25,25 @@ POSTGRESQL_DB=paperless
 POSTGRESQL_PASSWORD=paperlesschangeme
 
 echo "Creating Paperless Pod..."
-podman pod create --replace --name paperless \
+podman run --name paperless-net \
   -p ${PAPERLESS_PORT}:${PAPERLESS_PORT} \
   -p ${SFTPGO_SFTP_PORT}:${SFTPGO_SFTP_PORT} \
-  -p ${SFTPGO_HTTP_PORT}:${SFTPGO_HTTP_PORT}
-
+  -p ${SFTPGO_HTTP_PORT}:${SFTPGO_HTTP_PORT} \
+  k8s.gcr.io/pause:3.2
+  
 echo "Starting Redis..."
 podman volume create paperless-redis 2> /dev/null ||:
-podman create --replace --pod paperless \
+podman create --replace --net container:paperless-net \
   --restart=unless-stopped \
   --name paperless-redis \
+  --net container:paperless-net \
   --volume paperless-redis:/data:Z \
   docker.io/library/redis:${REDIS_VERSION}
 podman start paperless-redis
 
 echo "Starting PostgreSQL..."
 podman volume create paperless-postgresql 2> /dev/null ||:
-podman create --replace --pod paperless \
+podman create --replace --net container:paperless-net \
   --restart=unless-stopped \
   --name paperless-postgresql \
   --expose ${POSTGRESQL_PORT} \
@@ -52,7 +54,7 @@ podman create --replace --pod paperless \
 podman start paperless-postgresql
 
 echo "Starting Gotenberg..."
-podman create --replace --pod paperless \
+podman create --replace --net container:paperless-net \
   --restart=unless-stopped \
   --name paperless-gotenberg \
   -e CHROMIUM_DISABLE_ROUTES=1 \
@@ -60,14 +62,14 @@ podman create --replace --pod paperless \
 podman start paperless-gotenberg
 
 echo "Starting Tika..."
-podman create --replace --pod paperless \
+podman create --replace --net container:paperless-net \
   --restart=unless-stopped \
   --name paperless-tika \
   docker.io/apache/tika
 podman start paperless-tika
 
 echo "Starting Paperless..."
-podman create --replace --pod paperless \
+podman create --replace --net container:paperless-net \
   --name paperless-webserver \
   --restart=unless-stopped \
   --stop-timeout=90 \
@@ -95,7 +97,7 @@ podman create --replace --pod paperless \
 podman start paperless-webserver
 
 echo "Starting SFTPGo..."
-podman create --replace --pod paperless \
+podman create --replace --net container:paperless-net \
   --restart=unless-stopped \
   --name paperless-sftpgo \
   -e SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN=1 \
